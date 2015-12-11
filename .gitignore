@@ -1,0 +1,37 @@
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+
+# Vim
+*.swp
+*.bak
+.*.c
+.*.py
+
+# Python other files
+*.pyc
+*.spec
+setup.py
+
+# Configuration
+*.ini
+*.cfg
+*.conf
+
+# Directories
+src/__pycache__/
+src/dist/
+src/build/
