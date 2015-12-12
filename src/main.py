@@ -3,7 +3,7 @@ from urllib.request import urlopen
 import urllib.parse
 import urllib.error
 from time import sleep
-from optparse import OptionParser
+import argparse
 
 import re
 
@@ -85,10 +85,28 @@ class Crawler(HTMLParser):
             if self.timer:
                 sleep(self.timer)
 
+opts = argparse.ArgumentParser(description="A webspider used to discover and store information interest.")
+group = opts.add_mutually_exclusive_group()
+group.add_argument('-q', '--quiet', help="no output from spider.",
+        action='store_false', dest="verbose")
+group.add_argument('-v', '--verbose', help="set verbose output [default]",
+        action='store_true', dest="verbose")
 
-with open('list.txt', 'r') as my_db:
-    data_info = my_db.read().lower().strip('\n').split(';')
+opts.add_argument('URL', help="url to start the crawl.")
+opts.add_argument('-s', '--sub', help="directory of url to use as the root.")
+opts.add_argument('DATABASE', help="database that will read and store information.",
+        default=None)
+
+opts.add_argument('-t', '--time', help="interval between each crawl.",
+        type=float, default=False)
+opts.add_argument('-d', '--depth', help="depth of crawling.",
+        type=int, default=-1)
+
+args = opts.parse_args()
+
+if args.database:
+    with open('args.', 'r') as my_db:
+        data_info = my_db.read().lower().strip('\n').split(';')
 
 crawler = Crawler(url, sleep=30.0, database=data_info, sub="forums")
 crawler.crawl()
-
