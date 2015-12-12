@@ -3,19 +3,23 @@ from urllib.request import urlopen
 import urllib.parse
 import urllib.error
 from time import sleep
+from optparse import OptionParser
+
+import re
 
 url = "http://ultima-shards.com/forums/index.php"
-#url = "http://ultima-shards.com/forums/index.php?members/tek.5/"
 
 class Crawler(HTMLParser):
 
-    def __init__(self, url=None, depth=-1, sleep=False, database=None):
+    def __init__(self, url=None, depth=-1, sleep=False, database=None, sub=False):
         HTMLParser.__init__(self)
         self.root_url = url
         self.netloc = urllib.parse.urlparse(self.root_url).netloc
         self.depth = depth
         self.timer = sleep
         self.db = database
+        self.sub = sub
+
         self.count = 0
         self.urlVisited = []
         self.urlList = [self.root_url]
@@ -31,6 +35,9 @@ class Crawler(HTMLParser):
 
                     newUrl = urllib.parse.urljoin(self.root_url, value)
                     le_url = urllib.parse.urlparse(newUrl)
+                    proper_directory = le_url.path.split("/")
+                    if self.sub not in proper_directory and self.sub:
+                        return False
                     if le_url.netloc == self.netloc and newUrl not in self.urlVisited + self.urlList: 
                         self.urlList += [newUrl]
 
@@ -55,8 +62,6 @@ class Crawler(HTMLParser):
 
     def crawl(self):
         while self.count != self.depth and self.urlList != []:
-            if self.timer:
-                sleep(self.timer)
             url = self.urlList[0]
             self.count += 1    
             print("   [%s]URL: %s" % (self.count, url))
@@ -77,12 +82,13 @@ class Crawler(HTMLParser):
                 url_complete = url_total - url_remain
                 print(">> Total Discovered URLs: %s; %s yet to parse." % (url_total, url_remain))
 
-
+            if self.timer:
+                sleep(self.timer)
 
 
 with open('list.txt', 'r') as my_db:
     data_info = my_db.read().lower().strip('\n').split(';')
 
-crawler = Crawler(url, sleep=1.0, database=data_info)
+crawler = Crawler(url, sleep=30.0, database=data_info, sub="forums")
 crawler.crawl()
 
