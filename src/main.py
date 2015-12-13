@@ -17,7 +17,7 @@ class Crawler(HTMLParser):
         self.netloc     = urllib.parse.urlparse(self.root_url).netloc
         self.depth      = args.depth
         self.timer      = args.time
-        self.db         = ClientMongo()[args.DATABASE]['items']
+        self.db         = MongoClient()[args.DATABASE]['items']
         self.sub        = args.sub
         self.verbose    = args.verbose
         # # # # # # # # # # # # # # # # # # # # # # 
@@ -25,7 +25,8 @@ class Crawler(HTMLParser):
         self.urlVisited = []
         self.urlList    = [self.root_url]
         self.discovered = {}
-        self.loadDB()
+        self.items      = []
+        self.queryDB()
 
 
     def handle_starttag(self, tag, attrs):
@@ -43,12 +44,15 @@ class Crawler(HTMLParser):
                     if le_url.netloc == self.netloc and newUrl not in self.urlVisited + self.urlList: 
                         self.urlList += [newUrl]
 
-        self.db = self.client['crawler']
-        self.collection = db['items']
-    
+
 
     def queryDB(self):
-        
+        if len(self.items) < 1:
+            for doc in self.db.find({}, { "name": 1, "alias": 1, "_id": 0 }):
+                self.items.append(doc['name'])
+                for alias in doc['alias']:
+                    self.items.append(alias)
+
 
 
     def grabLinks(self, url):
@@ -78,7 +82,7 @@ class Crawler(HTMLParser):
                 if self.verbose:
                     print("   [%s]URL: %s" % (self.count, url))
                 le_html = self.grabLinks(url)
-                for item in self.db:
+                for item in self.items:
                     if " " + item + " " in le_html and (("buy" in le_html) or ("sell" in le_html)):
                         if self.verbose:
                             print("--> Found item: %s" % item)
@@ -121,11 +125,6 @@ opts.add_argument('-d', '--depth', help="depth of crawling.",
         type=int, default=-1)
 
 args = opts.parse_args()
-
-
-if not os_path.isfile(args.DATABASE):
-    print(" Bad database: %s" % args.DATABASE)
-    exit()
 
 crawler = Crawler(args)
 crawler.crawl()
