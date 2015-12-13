@@ -1,29 +1,31 @@
-from html.parser import HTMLParser  
+from html.parser    import HTMLParser  
 from urllib.request import urlopen  
+from time           import sleep
+from os             import path as os_path
+from pymongo        import MongoClient
+
 import urllib.parse
 import urllib.error
-from time import sleep
 import argparse
 
-import re
-
-url = "http://ultima-shards.com/forums/index.php"
 
 class Crawler(HTMLParser):
 
-    def __init__(self, url=None, depth=-1, sleep=False, database=None, sub=False):
+    def __init__(self, args):
         HTMLParser.__init__(self)
-        self.root_url = url
-        self.netloc = urllib.parse.urlparse(self.root_url).netloc
-        self.depth = depth
-        self.timer = sleep
-        self.db = database
-        self.sub = sub
-
-        self.count = 0
+        self.root_url   = args.URL
+        self.netloc     = urllib.parse.urlparse(self.root_url).netloc
+        self.depth      = args.depth
+        self.timer      = args.time
+        self.db         = ClientMongo()[args.DATABASE]['items']
+        self.sub        = args.sub
+        self.verbose    = args.verbose
+        # # # # # # # # # # # # # # # # # # # # # # 
+        self.count      = 0
         self.urlVisited = []
-        self.urlList = [self.root_url]
+        self.urlList    = [self.root_url]
         self.discovered = {}
+        self.loadDB()
 
 
     def handle_starttag(self, tag, attrs):
@@ -41,6 +43,13 @@ class Crawler(HTMLParser):
                     if le_url.netloc == self.netloc and newUrl not in self.urlVisited + self.urlList: 
                         self.urlList += [newUrl]
 
+        self.db = self.client['crawler']
+        self.collection = db['items']
+    
+
+    def queryDB(self):
+        
+
 
     def grabLinks(self, url):
         try:
@@ -53,7 +62,8 @@ class Crawler(HTMLParser):
             else:
                 return ""
         except urllib.error.HTTPError as e:
-            print(">> %s: %s" % (e.code, e.reason))
+            if self.verbose:
+                print(">> %s: %s" % (e.code, e.reason))
             return ""
         except urllib.error.URLError as e:
             print(">> " + e.reason)
@@ -62,28 +72,36 @@ class Crawler(HTMLParser):
 
     def crawl(self):
         while self.count != self.depth and self.urlList != []:
-            url = self.urlList[0]
-            self.count += 1    
-            print("   [%s]URL: %s" % (self.count, url))
-            le_html = self.grabLinks(url)
-            for item in self.db:
-                if " " + item + " " in le_html and (("buy" in le_html) or ("sell" in le_html)):
-                    print("--> Found item: %s" % item)
-                    if item not in self.discovered:
-                        self.discovered[item] = [url]
-                    else:
-                        self.discovered[item] += [url]
+            try:
+                url = self.urlList[0]
+                self.count += 1
+                if self.verbose:
+                    print("   [%s]URL: %s" % (self.count, url))
+                le_html = self.grabLinks(url)
+                for item in self.db:
+                    if " " + item + " " in le_html and (("buy" in le_html) or ("sell" in le_html)):
+                        if self.verbose:
+                            print("--> Found item: %s" % item)
+                        if item not in self.discovered:
+                            self.discovered[item] = [url]
+                        else:
+                            self.discovered[item] += [url]
 
-            self.urlList.pop(0)
-            self.urlVisited += [url]
-            if len(self.urlVisited) % 10 == 0:
-                url_total = len(self.urlList) + len(self.urlVisited)
-                url_remain = len(self.urlList)
-                url_complete = url_total - url_remain
-                print(">> Total Discovered URLs: %s; %s yet to parse." % (url_total, url_remain))
+                self.urlList.pop(0)
+                self.urlVisited += [url]
+                if len(self.urlVisited) % 10 == 0 and self.verbose:
+                    url_total = len(self.urlList) + len(self.urlVisited)
+                    url_remain = len(self.urlList)
+                    url_complete = url_total - url_remain
+                    print(">> Total Discovered URLs: %s; %s yet to parse." % (url_total, url_remain))
 
-            if self.timer:
-                sleep(self.timer)
+                if self.timer:
+                    sleep(self.timer)
+            except KeyboardInterrupt:
+                print("\n Caught keyboard interrupt. Exiting...")
+                return False
+
+
 
 opts = argparse.ArgumentParser(description="A webspider used to discover and store information interest.")
 group = opts.add_mutually_exclusive_group()
@@ -104,9 +122,10 @@ opts.add_argument('-d', '--depth', help="depth of crawling.",
 
 args = opts.parse_args()
 
-if args.database:
-    with open('args.', 'r') as my_db:
-        data_info = my_db.read().lower().strip('\n').split(';')
 
-crawler = Crawler(url, sleep=30.0, database=data_info, sub="forums")
+if not os_path.isfile(args.DATABASE):
+    print(" Bad database: %s" % args.DATABASE)
+    exit()
+
+crawler = Crawler(args)
 crawler.crawl()
