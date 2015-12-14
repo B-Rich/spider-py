@@ -14,31 +14,34 @@ class Crawler(HTMLParser):
 
     def __init__(self, args):
         HTMLParser.__init__(self)
-        self.root_url   = args.URL
-        self.netloc     = urllib.parse.urlparse(self.root_url).netloc
-        self.depth      = args.depth
-        self.timer      = args.time
-        self.db         = MongoClient()[args.DATABASE]['items']
-        self.sub        = args.sub
-        self.verbose    = args.verbose
-        # # # # # # # # # # # # # # # # # # # # # # 
-        self.key_terms  = ["buy", "sell", "trade", "trading"]
-        self.count      = 0
-        self.urlBlacklist = []
-        self.urlList    = [self.root_url]
-        self.discovered = {}
-        self.items      = []
-        # # # # # # # # # # # # # # # # # # # # # # 
+        self.root_url   = args.URL                                      # Original URL passed.
+        self.netloc     = urllib.parse.urlparse(self.root_url).netloc   # Netloc of the URL.
+        self.depth      = args.depth                                    # Distance (pages) to travel.
+        self.timer      = args.time                                     # Amount of time per page.
+        self.db         = MongoClient()[args.DATABASE]['items']         # Database that stores data.
+        self.sub        = args.sub                                      # Subdirectory to set as root of webpage.
+        self.verbose    = args.verbose                                  # Verbosity setting.
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #  
+        self.key_terms      = ["buy", "sell", "trade", "trading"]
+        self.count          = 0                 # Amount of pages processed.
+        self.posts          = 0                 # Amount of posts scanned.
+        self.urlBlacklist   = []                # Already completed URLS.
+        self.urlDNU         = []                # Do not use URLS, duplicates.
+        self.urlList        = [self.root_url]   # List of URLS to scan.
+        self.items          = []                # Items to look for.
+        self.discovered     = {}                # Items discovered + [URLs]
+        self.BigDict        = {}                # Dictionary containing ThreadID + [URLS] <- urlDNU list?.
+        # # # # # # # # # # # # # # # # # # # # #
         self.li_main            = False     # Start of play contribution
         self.blockquote_main    = False     # Start of the message
         self.div_quote_main     = False     # Start of Quote Container
-        self.div_quote_xpand    = False
+        self.div_quote_xpand    = False     # Start of QuoteExpand
         self.blockquote_quote   = False     # Start of Quote Message
-        self.text_lock          = True
+        self.text_lock          = True      # Locks the abilty to print text or use it.
         self.li_name            = None      # Name of original author
         self.blockquote_name    = None      # Name of person being quoted.
-
-        self.queryDB()
+        # # # # # # # # # # # # # # # # # # #
+        self.queryDB()      # Loads the self.items list.
 
 
     def handle_starttag(self, tag, attrs):
@@ -76,12 +79,33 @@ class Crawler(HTMLParser):
                 else:
                     self.li_main = False
 
+        elif tag == 'input':
+            stat = 0
+            for (key, value) in attrs:
+                if key == 'type' and value == 'checkbox':
+                    stat += 1
+                    continue
+                elif key == 'name' and value == 'type[post][thread_id]':
+                    stat += 1
+                    continue
+                elif key == 'value' and stat == 2:
+                    if value in self.BigDict:
+                        self.BigDict[value] += [self.current_url]
+                    else:
+                        self.BigDict[value] = [self.current_url]
+                    for url in self.BigDict[value]:
+                        if url in self.urlList:
+                            self.urlList.remove(url)
+                            if self.verbose:
+                                print(">> Removed %s as duplicate!" % url)
+
         elif tag == 'blockquote':
             for (key, value) in attrs:
                 #print("  [ DEBUG ]  %s: %s" % (key, value))
                 if self.li_main and not self.blockquote_main and key == 'class' and value == 'messageText SelectQuoteContainer ugc baseHtml':
                     #print("\n============================================")
                     #print("  [ DEBUG ] This is in 1st blockquote")
+                    self.posts += 1
                     self.blockquote_main = True
                     self.text_lock = False
                 elif self.blockquote_main:
@@ -158,6 +182,7 @@ class Crawler(HTMLParser):
     def handle_url(self, url):
         try:
             response = urlopen(url)
+            self.current_url = url
             if 'text/html' in response.headers['Content-Type']:
                 htmlpage = response.read()
                 le_html = htmlpage.decode("utf-8")
@@ -190,7 +215,7 @@ class Crawler(HTMLParser):
                     url_total = len(self.urlList) + len(self.urlBlacklist)
                     url_remain = len(self.urlList)
                     url_complete = url_total - url_remain
-                    print(">> Total Discovered URLs: %s; %s yet to parse." % (url_total, url_remain))
+                    print(">> Total Discovered URLs: %s; %s yet to parse. Posts parsed: %s" % (url_total, url_remain, self.posts))
 
                 if self.timer:
                     sleep(self.timer)
