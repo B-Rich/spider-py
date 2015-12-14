@@ -23,7 +23,7 @@ class Crawler(HTMLParser):
         self.verbose    = args.verbose
         # # # # # # # # # # # # # # # # # # # # # # 
         self.count      = 0
-        self.urlVisited = []
+        self.urlBlacklist = []
         self.urlList    = [self.root_url]
         self.discovered = {}
         self.items      = []
@@ -48,10 +48,16 @@ class Crawler(HTMLParser):
                     value = "".join(value)
                     newUrl = urllib.parse.urljoin(self.root_url, value)
                     le_url = urllib.parse.urlparse(newUrl)
+                    if newUrl.find("#post-") != -1:
+                        index = newUrl.find("#post-")
+                        newUrl = newUrl[:index]
+                    if newUrl.find(".rss") != -1:
+                        print(">> Skipping .rss: %s" % newUrl)
+                        return False
                     proper_directory = le_url.path.split("/")
                     if self.sub not in proper_directory and self.sub:
                         return False
-                    if le_url.netloc == self.netloc and newUrl not in self.urlVisited + self.urlList: 
+                    if le_url.netloc == self.netloc and newUrl not in self.urlBlacklist + self.urlList: 
                         self.urlList += [newUrl]
 
         elif tag == 'li':
@@ -70,7 +76,7 @@ class Crawler(HTMLParser):
             for (key, value) in attrs:
                 #print("  [ DEBUG ]  %s: %s" % (key, value))
                 if self.li_main and not self.blockquote_main and key == 'class' and value == 'messageText SelectQuoteContainer ugc baseHtml':
-                    print("\n============================================")
+                    #print("\n============================================")
                     #print("  [ DEBUG ] This is in 1st blockquote")
                     self.blockquote_main = True
                     self.text_lock = False
@@ -93,9 +99,9 @@ class Crawler(HTMLParser):
 
     def handle_data(self, data):
         if self.blockquote_main and not self.div_quote_main and not self.text_lock:
-            if data.strip():
-                print("%s said: " % self.li_name)
-                print(data.strip())
+            #if data.strip():
+                #print("%s said: " % self.li_name)
+                #print(data.strip())
             self.text_lock = True
         elif self.blockquote_quote and self.div_quote_main and not self.text_lock:
             #print(" QUOTE %s: " % self.blockquote_name)
@@ -172,9 +178,9 @@ class Crawler(HTMLParser):
                             self.discovered[item] += [url]
 
                 self.urlList.pop(0)
-                self.urlVisited += [url]
-                if len(self.urlVisited) % 10 == 0 and self.verbose:
-                    url_total = len(self.urlList) + len(self.urlVisited)
+                self.urlBlacklist += [url]
+                if len(self.urlBlacklist) % 10 == 0 and self.verbose:
+                    url_total = len(self.urlList) + len(self.urlBlacklist)
                     url_remain = len(self.urlList)
                     url_complete = url_total - url_remain
                     print(">> Total Discovered URLs: %s; %s yet to parse." % (url_total, url_remain))
