@@ -7,6 +7,7 @@ from pymongo        import MongoClient
 import urllib.parse
 import urllib.error
 import argparse
+import re
 
 
 class Crawler(HTMLParser):
@@ -26,6 +27,15 @@ class Crawler(HTMLParser):
         self.urlList    = [self.root_url]
         self.discovered = {}
         self.items      = []
+        # # # # # # # # # # # # # # # # # # # # # # 
+        self.li_main            = False     # Start of play contribution
+        self.blockquote_main    = False     # Start of the message
+        self.div_quote_main     = False     # Start of Quote Container
+        self.blockquote_quote   = False     # Start of Quote Message
+        self.text_lock          = True
+        self.li_name            = None      # Name of original author
+        self.blockquote_name    = None      # Name of person being quoted.
+
         self.queryDB()
 
 
@@ -43,7 +53,66 @@ class Crawler(HTMLParser):
                         return False
                     if le_url.netloc == self.netloc and newUrl not in self.urlVisited + self.urlList: 
                         self.urlList += [newUrl]
+        elif tag == 'li':
+            for (key, value) in attrs:
+                if key == 'id':
+                    continue
+                elif key == 'class':
+                    continue
+                elif key == 'data-author':
+                    self.li_main = True
+                    self.li_name = value
+                else:
+                    self.li_main = False
+        elif tag == 'blockquote':
+            #for (key, value) in attrs:
+            if self.li_main and not self.blockquote_quote:
+                self.blockquote_main = True
+                self.text_lock = False
 
+            elif self.blockquote_main:
+                self.blockquote_quote = True
+
+        elif tag == 'div' and self.blockquote_main and self.blockquote_quote:
+            print("Proper DIV found.")
+            for (key, value) in attrs:
+                if key == 'class' and value == 'quote' and self.blockquote_quote:
+                    self.div_quote_main = True
+                    self.text_lock = False
+                    break
+                elif key == 'data-author':
+                    self.Quote_name = value
+
+
+
+    def handle_data(self, data):
+        if self.blockquote_main and not self.div_quote_main and not self.text_lock:
+            print("%s said: " % self.li_name)
+            print(data.strip())
+            self.text_lock = True
+        elif self.blockquote_quote and self.div_quote_main and not self.text_lock:
+            print(" QUOTE %s: " % self.Quote_name)
+            print(data.strip())
+            self.text_lock = True
+
+
+    def handle_endtag(self, tag):
+        if tag == 'li' and self.li_main:
+            self.li_main            = False
+            self.blockquote_main    = False
+            self.blockquote_quote   = False
+            self.div_quote_main     = False
+            self.text_lock          = True
+            self.li_name            = None
+            self.blockquote_main    = None
+        elif tag == 'blockquote':
+            if self.blockquote_main and self.blockquote_quote:
+                self.blockquote_quote = False
+            elif self.blockquote_main and not self.blockquote_quote:
+                self.blockquote_main = False
+        elif tag == 'div':
+            if self.blockquote_quote:
+                self.div_quote_main = False
 
 
     def queryDB(self):
@@ -61,6 +130,7 @@ class Crawler(HTMLParser):
             if 'text/html' in response.headers['Content-Type']:
                 htmlpage = response.read()
                 le_html = htmlpage.decode("utf-8")
+                le_html = re.sub("<br />", "", le_html)
                 self.feed(le_html)
                 return le_html
             else:
@@ -106,6 +176,13 @@ class Crawler(HTMLParser):
                 return False
 
 
+def remove_all(substr, string):
+    index = 0
+    length = len(substr)
+    while string.find(substr) != -1:
+        index = string.find(substr)
+        sring = string[0:index] + string[index+length:]
+    return string
 
 opts = argparse.ArgumentParser(description="A webspider used to discover and store information interest.")
 group = opts.add_mutually_exclusive_group()
