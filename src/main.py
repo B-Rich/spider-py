@@ -22,6 +22,7 @@ class Crawler(HTMLParser):
         self.sub        = args.sub
         self.verbose    = args.verbose
         # # # # # # # # # # # # # # # # # # # # # # 
+        self.key_terms  = ["buy", "sell", "trade", "trading"]
         self.count      = 0
         self.urlBlacklist = []
         self.urlList    = [self.root_url]
@@ -52,11 +53,14 @@ class Crawler(HTMLParser):
                         index = newUrl.find("#post-")
                         newUrl = newUrl[:index]
                     if newUrl.find(".rss") != -1:
-                        print(">> Skipping .rss: %s" % newUrl)
-                        return False
+                        #print(">> Skipping .rss: %s" % newUrl)
+                        #self.urlBlacklist += [newUrl]
+                        #return False
+                        continue
                     proper_directory = le_url.path.split("/")
                     if self.sub not in proper_directory and self.sub:
-                        return False
+                        #return False
+                        continue
                     if le_url.netloc == self.netloc and newUrl not in self.urlBlacklist + self.urlList: 
                         self.urlList += [newUrl]
 
@@ -96,17 +100,29 @@ class Crawler(HTMLParser):
                     self.blockquote_name = value
 
 
-
     def handle_data(self, data):
         if self.blockquote_main and not self.div_quote_main and not self.text_lock:
-            #if data.strip():
-                #print("%s said: " % self.li_name)
-                #print(data.strip())
+            '''
+            if data.strip():
+                print("%s said: " % self.li_name)
+                print(data.strip())
+            '''
+            self.handle_parse(data.strip().lower())
             self.text_lock = True
         elif self.blockquote_quote and self.div_quote_main and not self.text_lock:
-            #print(" QUOTE %s: " % self.blockquote_name)
-            #print(data.strip())
+            '''
+            print(" QUOTE %s: " % self.blockquote_name)
+            print(data.strip())
+            '''
             self.text_lock = True
+
+
+    def handle_parse(self, data):
+        for item in self.items:
+            for key_term in self.key_terms:
+                if data.find(item) > 0 and data.find(key_term) > 0:
+                    if self.verbose:
+                        print("--> Found item: [ %s: %s ]" % (key_term, item))
 
 
     def handle_endtag(self, tag):
@@ -139,8 +155,7 @@ class Crawler(HTMLParser):
                     self.items.append(alias)
 
 
-
-    def grabLinks(self, url):
+    def handle_url(self, url):
         try:
             response = urlopen(url)
             if 'text/html' in response.headers['Content-Type']:
@@ -148,9 +163,9 @@ class Crawler(HTMLParser):
                 le_html = htmlpage.decode("utf-8")
                 le_html = re.sub("<br />", "", le_html)
                 self.feed(le_html)
-                return le_html
-            else:
-                return ""
+                #return True #le_html
+            #else:
+                #return ""
         except urllib.error.HTTPError as e:
             if self.verbose:
                 print(">> %s: %s" % (e.code, e.reason))
@@ -167,15 +182,7 @@ class Crawler(HTMLParser):
                 self.count += 1
                 if self.verbose:
                     print("   [%s]URL: %s" % (self.count, url))
-                le_html = self.grabLinks(url)
-                for item in self.items:
-                    if " " + item + " " in le_html and (("buy" in le_html) or ("sell" in le_html)):
-                        if self.verbose:
-                            print("--> Found item: %s" % item)
-                        if item not in self.discovered:
-                            self.discovered[item] = [url]
-                        else:
-                            self.discovered[item] += [url]
+                self.handle_url(url)
 
                 self.urlList.pop(0)
                 self.urlBlacklist += [url]
