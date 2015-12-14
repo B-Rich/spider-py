@@ -31,6 +31,7 @@ class Crawler(HTMLParser):
         self.li_main            = False     # Start of play contribution
         self.blockquote_main    = False     # Start of the message
         self.div_quote_main     = False     # Start of Quote Container
+        self.div_quote_xpand    = False
         self.blockquote_quote   = False     # Start of Quote Message
         self.text_lock          = True
         self.li_name            = None      # Name of original author
@@ -45,7 +46,6 @@ class Crawler(HTMLParser):
                 if key  == 'href':
                     value = value.split()
                     value = "".join(value)
-
                     newUrl = urllib.parse.urljoin(self.root_url, value)
                     le_url = urllib.parse.urlparse(newUrl)
                     proper_directory = le_url.path.split("/")
@@ -53,6 +53,7 @@ class Crawler(HTMLParser):
                         return False
                     if le_url.netloc == self.netloc and newUrl not in self.urlVisited + self.urlList: 
                         self.urlList += [newUrl]
+
         elif tag == 'li':
             for (key, value) in attrs:
                 if key == 'id':
@@ -64,35 +65,41 @@ class Crawler(HTMLParser):
                     self.li_name = value
                 else:
                     self.li_main = False
-        elif tag == 'blockquote':
-            #for (key, value) in attrs:
-            if self.li_main and not self.blockquote_quote:
-                self.blockquote_main = True
-                self.text_lock = False
 
-            elif self.blockquote_main:
-                self.blockquote_quote = True
+        elif tag == 'blockquote':
+            for (key, value) in attrs:
+                #print("  [ DEBUG ]  %s: %s" % (key, value))
+                if self.li_main and not self.blockquote_main and key == 'class' and value == 'messageText SelectQuoteContainer ugc baseHtml':
+                    print("\n============================================")
+                    #print("  [ DEBUG ] This is in 1st blockquote")
+                    self.blockquote_main = True
+                    self.text_lock = False
+                elif self.blockquote_main:
+                    #print("  [ DEBUG ] This is in 2nd blockquote")
+                    self.blockquote_quote = True
 
         elif tag == 'div' and self.blockquote_main and self.blockquote_quote:
-            print("Proper DIV found.")
             for (key, value) in attrs:
                 if key == 'class' and value == 'quote' and self.blockquote_quote:
                     self.div_quote_main = True
                     self.text_lock = False
-                    break
+                    #break
+                elif key == 'class' and value == 'quoteExpand':
+                    self.div_quote_xpand = True
                 elif key == 'data-author':
-                    self.Quote_name = value
+                    self.blockquote_name = value
 
 
 
     def handle_data(self, data):
         if self.blockquote_main and not self.div_quote_main and not self.text_lock:
-            print("%s said: " % self.li_name)
-            print(data.strip())
+            if data.strip():
+                print("%s said: " % self.li_name)
+                print(data.strip())
             self.text_lock = True
         elif self.blockquote_quote and self.div_quote_main and not self.text_lock:
-            print(" QUOTE %s: " % self.Quote_name)
-            print(data.strip())
+            #print(" QUOTE %s: " % self.blockquote_name)
+            #print(data.strip())
             self.text_lock = True
 
 
@@ -113,6 +120,9 @@ class Crawler(HTMLParser):
         elif tag == 'div':
             if self.blockquote_quote:
                 self.div_quote_main = False
+            elif self.div_quote_xpand:
+                self.div_quote_xpand = False
+                self.text_lock = False
 
 
     def queryDB(self):
@@ -205,3 +215,4 @@ args = opts.parse_args()
 
 crawler = Crawler(args)
 crawler.crawl()
+print("\n===================================================================================" * 7)
