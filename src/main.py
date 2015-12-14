@@ -7,6 +7,7 @@ from pymongo        import MongoClient
 import urllib.parse
 import urllib.error
 import argparse
+import json
 import re
 
 
@@ -216,6 +217,8 @@ class Crawler(HTMLParser):
                     url_remain = len(self.urlList)
                     url_complete = url_total - url_remain
                     print(">> Total Discovered URLs: %s; %s yet to parse. Posts parsed: %s" % (url_total, url_remain, self.posts))
+                    with open('BigDict.json', 'w') as big_dict:
+                        big_dict.write(json.dumps(self.BigDict, sort_keys=True, indent=4, separators=(',', ':')))
 
                 if self.timer:
                     sleep(self.timer)
