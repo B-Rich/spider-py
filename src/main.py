@@ -12,7 +12,8 @@ import re
 
 
 class Crawler(HTMLParser):
-
+    ''' Root of the crawler. All defined as a single object that is responsible for
+    iterating over itself and making comparisons. '''
     def __init__(self, args):
         HTMLParser.__init__(self)
         self.root_url   = args.URL                                      # Original URL passed.
