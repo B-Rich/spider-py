@@ -19,7 +19,7 @@ class Crawler(HTMLParser):
         self.netloc     = urllib.parse.urlparse(self.root_url).netloc   # Netloc of the URL.
         self.depth      = args.depth                                    # Distance (pages) to travel.
         self.timer      = args.time                                     # Amount of time per page.
-        self.db         = MongoClient()[args.DATABASE]['items']         # Database that stores data.
+        self.db         = MongoClient()[args.db][args.coll]               # Database that stores data.
         self.sub        = args.sub                                      # Subdirectory to set as root of webpage.
         self.verbose    = args.verbose                                  # Verbosity setting.
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #  
@@ -244,8 +244,10 @@ group.add_argument('-v', '--verbose', help="set verbose output [default]",
 
 opts.add_argument('URL', help="url to start the crawl.")
 opts.add_argument('-s', '--sub', help="directory of url to use as the root.")
-opts.add_argument('DATABASE', help="database that will read and store information.",
-        default=None)
+opts.add_argument('--db', help="database that will read and store information.",
+        default=False)
+opts.add_argument('--coll', help="The collection (table) to use in the database.",
+        default='items')
 
 opts.add_argument('-t', '--time', help="interval between each crawl.",
         type=float, default=False)
@@ -253,7 +255,9 @@ opts.add_argument('-d', '--depth', help="depth of crawling.",
         type=int, default=-1)
 
 args = opts.parse_args()
+if args.db:
+    print(" Using Database: [ %s ] and table: [ %s ]" % (args.db, args.coll))
 
 crawler = Crawler(args)
 crawler.crawl()
-print("\n===================================================================================" * 7)
+print("\n===================================================================================\n" * 2)
